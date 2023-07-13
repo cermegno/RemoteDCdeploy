@@ -1,0 +1,210 @@
+---
+- name: Day1 initialization
+  hosts: localhost
+
+  vars_files:
+    - creds.yml
+        ## This includes:
+        ##   vcenter_username: 'administrator@vsphere.local'
+        ##   vcenter_password: ''
+
+  vars_prompt:
+    - name: dcsize
+      prompt: "What size DC should we build today (small/big)?"
+      private: no
+
+  vars:
+    vcenter_hostname: ''
+    datastore_path: 'template'
+    file_to_register: 'linuxtemplate.vmtx' ## this example uses a single VM template
+    vxmip: "10.1.1.1"
+    vcadmin: ""
+    vcpasswd: ""
+    day1json_file: "VxRail_Configuration.json" ## Create this file with the wizard
+    virtual_network: 'VxRail_net'
+    linuxtemplate: 'linuxtemplate'
+
+  tasks:
+  - name: Configure and deploy a new VxRail cluster
+    dellemc.vxrail.dellemc_vxrail_day1:
+      vxmip: "{{ vxmip }}"
+      vcadmin: "{{ vcadmin }}"
+      vcpasswd: "{{ vcpasswd }}"
+      day1json_file: "{{ day1json_file }}"
+    async: 18000
+    poll: 0
+    register: installation_status
+    
+  - name: Check if Day1 initialization job is completed...The Day1 installation is still ongoing.
+    async_status:
+      jid: "{{ installation_status.ansible_job_id }}"
+    register: job_result
+    until: job_result.finished
+    retries: 180
+    delay: 60
+
+  - name: Get Day1 initialization Result
+    debug:
+      msg:  "{{job_result}}"
+
+
+## Now we need to get some details of the new environment: datacenter, cluster, datastore ...
+  - name: Gather information about all datacenters
+    community.vmware.vmware_datacenter_info:
+      hostname: '{{ vcenter_hostname }}'
+      username: '{{ vcenter_username }}'
+      password: '{{ vcenter_password }}'
+      validate_certs: no
+    register: dc
+
+  - set_fact:
+      datacenter_name: "{{ dc.datacenter_info.0.name }}"
+
+  - debug:
+      msg: "Found Datacenter : {{ datacenter_name }}"
+
+  - name: Gather cluster info from given datacenter
+    community.vmware.vmware_cluster_info:
+      hostname: '{{ vcenter_hostname }}'
+      username: '{{ vcenter_username }}'
+      password: '{{ vcenter_password }}'
+      validate_certs: no
+      datacenter: "{{ dc.datacenter_info.0.name }}"
+    register: cluster
+
+  - set_fact:
+      cluster_list: "{{ cluster.clusters.keys() | list }}"
+
+  - set_fact:
+      cluster_name: "{{ cluster_list.0 }}"
+
+  - debug:
+      msg: "Found Cluster : {{ cluster_list.0 }}"
+
+  - name: Gather datastore info from given datacenter
+    community.vmware.vmware_datastore_info:
+      hostname: '{{ vcenter_hostname }}'
+      username: '{{ vcenter_username }}'
+      password: '{{ vcenter_password }}'
+      validate_certs: no
+      datacenter: "{{ dc.datacenter_info.0.name }}"
+    register: datastore
+
+  - name: set_fact datastore matching VxRail pattern
+    set_fact:
+      datastore_name: "{{ item.name }}"
+    loop: "{{ datastore.datastores }}"
+    loop_control:
+      label: "{{ item.name }}"
+    when: "item.name.startswith('VxRail-Virtual-SAN-Datastore')"
+
+  - debug:
+      msg: "Found Datastore : {{ datastore_name }}"
+
+
+### Now we copy all files from the "template" subdir and we register them in vCenter
+### In my example this includes a vmtx, vmdk, vmsd ...
+  - name: Get all file names in the template directory
+    find:
+      paths: template
+      patterns: "*"
+      recurse: no
+      file_type: file
+    register: found_files
+
+  - name: The following files will be copied to the datastore
+    debug:
+      msg: "{{ item.path }}"
+    with_items: "{{ found_files.files }}"
+    loop_control:
+      label: "{{ item.path }}"
+
+  - name: Copy file to datastore using delegate_to
+    community.vmware.vsphere_copy:
+      hostname: "{{ vcenter_hostname }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      src: "{{ item.path }}"
+      datacenter: "{{ datacenter_name }}"
+      datastore: "{{ datastore_name }}"
+      path: "{{ item.path }}"
+      validate_certs: no
+    with_items: "{{ found_files.files }}"
+    loop_control:
+      label: "{{ item.path }}"
+
+  - name: Register VM to inventory
+    community.vmware.vmware_guest_register_operation:
+      hostname: "{{ vcenter_hostname }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      datacenter: "{{ datacenter_name }}"
+      folder: "{{ datacenter_name }}/vm"
+      cluster: "{{ cluster_name }}"
+      name: "linuxtemplate"
+      template: true
+      path: "[{{ datastore_name }}] {{ datastore_path }}/{{ file_to_register }}"
+      validate_certs: no
+      state: present
+
+### We read the datacenter template that contains the definition of all VMs and apps
+### Datacenter templates are stored in the "dc-templates" subdir
+  - name: Read template file
+    shell: cat dc-templates/{{ dcsize }}-template.json
+    register: output
+
+  - set_fact:
+      vm_details : "{{ output.stdout|from_json }}"
+
+  - debug:
+      msg:
+        - "{{ vm_details }}"
+
+  - debug:
+      msg: "Building {{ item.value.amount }} {{ item.key }} vms with role {{ item.value.role }}"
+    loop: "{{ vm_details | dict2items }}"
+    loop_control:
+      label: "{{ item.key }}"
+
+  - name: Deploy Virtual Machines
+    include: create-vms.yml
+    loop: "{{ vm_details | dict2items }}"
+    loop_control:
+      label: "{{ item.key }}"
+
+- name:  Wait for all VMs to be reachable vi SSH before continuing
+  hosts: all
+  remote_user: root
+  gather_facts: no
+  tasks:
+    - name: Wait up to 300 seconds, but only start checking after 10 seconds
+      wait_for_connection:
+        delay: 10
+        timeout: 300
+
+### Now we have a play for each application type. All application types live in the "profile" subdir
+- name: Configure MACHINE LEARNING APP VMs
+  hosts: ml_app
+  tasks:
+    - include: profile/machinelearning.yml
+
+- name: Configure PORTAL VMs
+  hosts: portal
+  tasks:
+    - include: profile/apache.yml
+      vars:
+        http_port: 80
+        #src_dir: iotapp # This is a way of passing what dir contains the dir structure to be copied
+        # I can use the var "group_names[0]" if the dir is named after the app type
+        #"group_names" is a list, hence the [0]. We dont place hosts in many groups
+
+- name: Configure REDIS CACHE VMs
+  hosts: rediscache
+  tasks:
+    - include: profile/redis.yml
+
+- name: Configure NFS DEPOT VMs
+  hosts: nfsdepot
+  tasks:
+    - include: profile/nfs.yml
+

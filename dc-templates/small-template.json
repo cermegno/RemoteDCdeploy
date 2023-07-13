@@ -1,0 +1,11 @@
+{
+    "portal":
+        {
+            "amount" : 1,
+            "role": "apache",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "10.1.1.50"
+        }
+}

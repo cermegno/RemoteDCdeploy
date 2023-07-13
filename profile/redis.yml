@@ -1,0 +1,30 @@
+- name: Ensure Epel is installed
+  yum: 
+    name:
+      - epel-release
+      - yum-utils
+    state: present
+
+- name: Ensure redis is installed
+  yum: 
+    name: redis
+    state: present
+
+- name: Ensure Redis can be accessed externally
+  lineinfile:
+    path: /etc/redis.conf
+    regexp: '^bind 127.0.0.1'
+    line: '#bind 127.0.0.1'
+
+- name: Ensure Redis is started
+  service:
+    name: redis
+    state: started
+
+- name: Copy folder structure
+  copy:
+    src: "source_folders/{{ group_names[0] }}/"
+    dest: /
+    mode: preserve
+    directory_mode: 
+

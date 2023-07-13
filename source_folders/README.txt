@@ -1,0 +1,2 @@
+Include a folder structure for each "application" name as described in the Datacenter template
+The folder structure includes folders and files that will be merged into the target VMs. The folders in this folder represent the "/" root folder in the target VM. So you need to put "etc", "tmp" "var" in the next level of depth

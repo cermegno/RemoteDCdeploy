@@ -1,0 +1,39 @@
+- name: Ensure Epel is installed
+  yum:
+    name:
+      - epel-release
+      - yum-utils
+    state: present
+
+- name: Install Python3
+  yum:
+    name: python3
+    state: present
+
+- name: Install setuptools package
+  yum:
+    name: python-setuptools
+
+- name: Install Machine Learning packages - scikit, numpy, scipy, pandas ...
+  pip:
+    name:
+    - scikit-learn 
+    - numpy
+    - scipy
+    - pandas
+    virtualenv_command: /usr/bin/python3 -m venv
+    virtualenv: "/root/ml-env"
+
+#- name: Install Machine Learning packages with pip3
+#  pip:
+#    executable: pip3
+#    name:
+#    - scikit-learn 
+
+- name: Copy folder structure
+  copy:
+    src: "source_folders/{{ group_names[0] }}/"
+    dest: /
+    mode: preserve
+    directory_mode: 
+

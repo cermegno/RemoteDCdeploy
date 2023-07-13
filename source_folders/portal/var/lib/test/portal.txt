@@ -1,0 +1,1 @@
+This is a portal file in /var/lib. The 'test' directory doesn't exist so it should be created

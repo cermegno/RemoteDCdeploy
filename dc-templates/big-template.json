@@ -1,0 +1,84 @@
+
+{
+    "portal":
+        {
+            "amount" : 2,
+            "description": "Web portal for the edge datacenter",
+            "role": "apache",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.110"
+        },
+    "cmdb" :
+        {
+            "amount" : 1,
+            "description": "Local copy of the Change Management Database",
+            "role": "mysql",
+            "cores" : 2,
+            "ram" : 8192,
+            "storage" : 64,
+            "ip" : "172.18.20.120"
+        },
+    "iotapp":
+        {
+            "amount" : 1,
+            "description": "IOT app that collects data from environment sensors (temp ...) in the edge site",
+            "role": "customiot",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.130"
+        },
+    "iotdb":
+        {
+            "amount" : 1,
+            "description": "Time series database for environment sensor data",
+            "role": "influxdb",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.140"
+        },
+    "grafana":
+        {
+            "amount" : 1,
+            "description": "Graphical tool to show IOT data",
+            "role": "grafana",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.150"
+        },
+    "rediscache":
+        {
+            "amount" : 1,
+            "description": "Caching layer for web transactions",
+            "role": "redis",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.160"
+        },
+    "ml_app":
+        {
+            "amount" : 4,
+            "description": "ML engine to analyze locally data that requires immediate action",
+            "role": "machinelearning",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.170"
+        },
+    "nfsdepot":
+        {
+            "amount" : 2,
+            "description": "High capacity NFS repository for all local files",
+            "role": "nfs",
+            "cores" : 2,
+            "ram" : 4096,
+            "storage" : 64,
+            "ip" : "172.18.20.180"
+        }
+}
+

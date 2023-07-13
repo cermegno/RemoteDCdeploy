@@ -1,0 +1,35 @@
+
+- name: Copy folder structure
+  copy:
+    src: "source_folders/{{ group_names[0] }}/"
+    dest: /
+    mode: preserve
+    directory_mode: 
+
+- name: Install nfs server
+  yum:
+    name: nfs-utils
+    state: present
+
+- name: Ensure nfslock service is running
+  service:
+   name: nfslock
+   state: started
+
+- name: Ensure nfs service is running
+  service:
+   name: nfs
+   state: started
+
+- name: Ensure rpcbind service is running
+  service:
+   name: rpcbind
+   state: started
+
+- name: Install tree utility
+  yum:
+    name: tree
+    state: present
+
+- name: NFS apply change configrue
+  shell: systemctl reload nfs;exportfs -a

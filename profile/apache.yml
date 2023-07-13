@@ -1,0 +1,52 @@
+
+- name: Copy folder structure
+  copy:
+    src: "source_folders/{{ group_names[0] }}/"
+    dest: /
+    mode: preserve
+    directory_mode: 
+
+- name: Install apache packages
+  yum:
+    name: httpd
+    state: latest
+
+- name: ensure httpd is running
+  service:
+    name: httpd
+    state: started
+
+- name: Ensure the default Apache port is {{ http_port }}
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^Listen '
+    insertafter: '^#Listen '
+    line: Listen {{ http_port }}
+
+- name: reload httpd
+  service:
+    name: httpd
+    state: reloaded
+
+- name: Open port {{ http_port }} for http access
+  firewalld:
+    port: "{{ http_port }}/tcp"
+    permanent: true
+    state: enabled
+
+- name: Restart the firewalld service to load in the firewall changes
+  service: 
+    name: firewalld 
+    state: restarted
+
+### This is not working at the moment. I'd like to test if the folder exists before attempting to copy
+### The alternative is to have an empty directory otherwise the copy fails
+#- stat:
+#    path: "source_folders/{{ group_names[0] }}"
+#  register: folder
+  
+#- debug:
+#    msg: "{{ folder }}"
+#    msg: "Path exists and is a directory"
+#  when: folder.stat.isdir is defined and folder.stat.isdir
+

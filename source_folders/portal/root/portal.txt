@@ -1,0 +1,2 @@
+This file was copied automatically as part of the deployment
+And it is a file specific for the "portal" app

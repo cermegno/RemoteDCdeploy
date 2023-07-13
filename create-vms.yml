@@ -1,0 +1,73 @@
+#######
+# More intuitive if we create facts for the inner loop
+- set_fact:
+    role: "{{ item.value.role }}"
+    vm_name: "{{ item.key }}"
+    amount: "{{ item.value.amount }}"
+    cores: "{{ item.value.cores }}"
+    ram: "{{ item.value.ram }}"
+    disk: "{{ item.value.storage }}"
+    ip_common: "{{ item.value.ip.split('.')[0] }}.{{ item.value.ip.split('.')[1] }}.{{ item.value.ip.split('.')[2] }}"
+    ip: "{{ item.value.ip.split('.')[3] }}"
+
+#- name: Creating now {{ amount }} VMs in a loop
+#  debug:
+#    msg:
+#     - "Creating VM {{ vm_name }}_{{ seq_num }} with {{ ram }} MB ram"
+#     - "IP is {{ ip_common }}.{{ ip | int + seq_num | int  - 1 }}"
+#  with_sequence: start=1 end={{ amount }} stride=1 format=%02x
+#  loop_control:
+#    label: "{{ vm_name }}_{{ seq_num }}"
+#    loop_var: seq_num
+
+- name: Create {{ amount }} {{ role }} VMs
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: False
+    name: "{{ vm_name }}_{{ seq_num }}"
+    template: "{{ linuxtemplate }}"
+    datacenter: "{{ datacenter_name }}"
+    folder: "{{ datacenter_name }}/vm"
+    state: poweredon
+    force: yes
+    cluster: "{{ cluster_name }}"
+    datastore: "{{ datastore_name }}"
+    wait_for_ip_address: no
+    hardware:
+      memory_mb: "{{ ram }}"
+      num_cpus: "{{ cores }}"
+    networks:
+    - name: "{{ virtual_network }}"
+      ip: "{{ ip_common }}.{{ ip | int + seq_num | int  - 1 }}"
+      netmask: 255.255.255.0
+      gateway: 172.18.20.1
+    disk:
+      - size_gb: "{{ disk }}"
+    customization:
+      dns_servers:
+      - 172.20.5.50
+  register: details
+  with_sequence: start=1 end={{ amount }} stride=1 format=%02x
+  loop_control:
+    label: "{{ vm_name }}_{{ seq_num }}"
+    loop_var: seq_num
+
+- debug:
+    msg: "Adding entries to inventory for {{ vms.instance.hw_name }}"
+  loop: "{{ details.results }}"
+  loop_control:
+    label: "{{ vms.instance.hw_name }}"
+    loop_var: vms
+
+- name: Add {{ vm_name }} hosts to inventory
+  add_host:
+    name: "{{ ip_common }}.{{ ip | int + seq_num | int  - 1 }}" #"{{ vms.instance.ipv4 }}"
+    groups:
+      - "{{ vm_name }}"
+  with_sequence: start=1 end={{ amount }} stride=1 format=%02x
+  loop_control:
+    label: "{{ vm_name }}_{{ seq_num }}"
+    loop_var: seq_num
+
